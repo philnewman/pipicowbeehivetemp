@@ -2,6 +2,7 @@ import dht
 import gc
 import network
 import ntptime
+import secrets
 import socket
 import time
 import urequests
@@ -9,9 +10,9 @@ from time import sleep
 from picozero import pico_temp_sensor, pico_led
 from machine import Pin, RTC
 
-sheetURL = ""
-ssid = ''
-password = ''
+sheetsURL = secrets.secrets['sheetsURL']
+ssid = secrets.secrets['ssid']
+password = secrets.secrets['password']
 
 def connect():
     #Connect to WLAN
@@ -38,8 +39,8 @@ def open_socket(ip):
 def sendToSpreadsheet(wifi):
     for attempts in range(5):
         try:
-            print(sheetURL+wifi)
-            res = urequests.get(url=sheetURL+wifi)
+            print(sheetsURL+wifi)
+            res = urequests.get(url=sheetsURL+wifi)
             print("Request sent!")
             res.close()
             gc.collect()
