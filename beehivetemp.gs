@@ -10,8 +10,10 @@ function doGet(e) {
 
   sheet = ss.getSheetByName(SHEETNAME);
 
-  var datetime = e.parameter.datetime;
-  var temperature = e.parameter.temperature;
+  var date = e.parameter.datetime;
+  var time = e.parameter.time;
+  var tempF = e.parameter.tempF
+  var tempC = e.parameter.tempC
   
-  sheet.appendRow([datetime, temperature]);
+  sheet.appendRow([date, time, tempF, tempC]);
 }
