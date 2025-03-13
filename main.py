@@ -3,16 +3,17 @@ import gc
 import network
 import ntptime
 import secrets
-import socket
 import time
 import urequests
 from time import sleep
 from picozero import pico_temp_sensor, pico_led
 from machine import Pin, RTC
 
-sheetsURL = secrets.secrets['sheetsURL']
+# Startup Variables
 ssid = secrets.secrets['ssid']
 password = secrets.secrets['password']
+sheetsURL = secrets.secrets['sheetsURL']
+timeZone = secrets.secrets['timeZone']
 
 def connect():
     #Connect to WLAN
@@ -25,66 +26,48 @@ def connect():
         sleep(1)
     ip = wlan.ifconfig()[0]
     print(f'Connected on {ip}')
-    return ip
-    
-def open_socket(ip):
-    # Open a socket
-    address = (ip, 80)
-    connection = socket.socket()
-    connection.bind(address)
-    connection.listen(1)
-    print(connection)
-    return connection
-    
-def sendToSpreadsheet(wifi):
-    for attempts in range(5):
-        try:
-            print(sheetsURL+wifi)
-            res = urequests.get(url=sheetsURL+wifi)
-            print("Request sent!")
-            res.close()
-            gc.collect()
-            
-        except:
-            print("Error! Retrying...")
-            continue
 
-        else:
-            break
-        
-    if (attempts >= 4):
-        print("Unrecoverable error!")
-    
-    atttempts = 0
+def disconnect():
+    wlan = network.WLAN(network.STA_IF)
+    wlan.disconnect()
+    wlan.active(False)
+    wlan.deinit()
+    print('Disconnected from network')
+
+def sendToSpreadsheet(wifi):
+    try:
+        res = urequests.get(url=sheetsURL+wifi)
+        res.close()
+        gc.collect()
+    except Exception as e:
+        print("An error has occured.",e) 
     
 def getFormattedCurrTime(adjustTimeZone):
     plusZeroTime = time.time()
     now = time.localtime(plusZeroTime + (adjustTimeZone * 3600))
-    timeStr = "{:02}-{:02}-{}%20{:02}:{:02}".format(now[2],now[1],now[0],now[3],now[4])
-    return timeStr
+    dateStr = "{:02}-{:02}-{}".format(now[0],now[1],now[2])
+    timeStr = "{:02}:{:02}:{:02}".format(now[3],now[4],now[5])
+    return dateStr, timeStr
 
-ip = connect()
-#connection = open_socket(ip)
-#serve(connection)
+def celsius_to_fahrenheit(temp_celcius):
+    temp_fahrenheit = round(temp_celcius * (9/5) + 32,2)
+    return temp_fahrenheit
 
-rtc = RTC()
-ntptime.settime()
+def send_message():
+    try:
+        dateStr, timeStr = getFormattedCurrTime(timeZone)
+        tempC = round(pico_temp_sensor.temp,2)
+        tempF = celsius_to_fahrenheit(tempC)
+        sendToSpreadsheet("?datetime={}&time={}&tempF={}&tempC={}".format(dateStr, timeStr, tempF, tempC)) 
+    except Exception as e:
+        print("Error:", e)
 
-prev = 0
-timeStr = ''
-
-minutes = 1
-timeZone = -7
-
-print("Time is set: ", getFormattedCurrTime(timeZone))
-
-while True:
-    curr = time.ticks_ms()
-    if(curr - prev >=  minutes * 60 * 1000):
-        prev = curr
-        timeStr = getFormattedCurrTime(timeZone)
-        temp = pico_temp_sensor.temp
-        print("{} - Temp: {}\xBAC".format(timeStr, temp))
-        sendToSpreadsheet("?datetime={}&temperature={}".format(timeStr, temp)) 
-    else:
-        time.sleep(minutes * 60)
+for i in range(20):
+    pico_led.on()
+    connect()
+    ntptime.settime()
+    rtc = RTC()
+    send_message()
+    disconnect()
+    pico_led.off()
+    time.sleep(900)
